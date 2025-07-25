@@ -1,0 +1,37 @@
+Kernel: box_blur_3
+- Execution time: 0.623318 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 121.22 MB
+Kernel: box_blur_7
+- Execution time: 0.475737 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 123.03 MB
+Kernel: box_blur_15
+- Execution time: 0.428425 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 126.69 MB
+Kernel: gauss_blur_3
+- Execution time: 0.791467 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 121.22 MB
+Kernel: gauss_blur_5
+- Execution time: 0.540837 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 122.12 MB
+Kernel: gauss_blur_7
+- Execution time: 0.255611 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 123.03 MB
+Kernel: gauss_blur_15
+- Execution time: 0.245173 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 126.69 MB
+Kernel: gauss_blur_21
+- Execution time: 0.188699 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 129.47 MB
+Kernel: unsharp_blur
+- Execution time: 0.474573 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 122.12 MB
+--------------- End in: 4.024471 seconds

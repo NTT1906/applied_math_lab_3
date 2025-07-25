@@ -1,0 +1,91 @@
+Padded shape:
+(802, 802, 3)
+fft_h, fft_w:
+(804, 804)
+Kernel fft shape:
+(804, 804)
+Kernel: box_blur_3
+- Execution time: 0.342160 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 74.76 MB
+Padded shape:
+(806, 806, 3)
+fft_h, fft_w:
+(812, 812)
+Kernel fft shape:
+(812, 812)
+Kernel: box_blur_7
+- Execution time: 0.351991 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 75.79 MB
+Padded shape:
+(814, 814, 3)
+fft_h, fft_w:
+(828, 828)
+Kernel fft shape:
+(828, 828)
+Kernel: box_blur_15
+- Execution time: 0.555248 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 77.88 MB
+Padded shape:
+(802, 802, 3)
+fft_h, fft_w:
+(804, 804)
+Kernel fft shape:
+(804, 804)
+Kernel: gauss_blur_3
+- Execution time: 0.485513 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 74.76 MB
+Padded shape:
+(804, 804, 3)
+fft_h, fft_w:
+(808, 808)
+Kernel fft shape:
+(808, 808)
+Kernel: gauss_blur_5
+- Execution time: 0.462461 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 75.27 MB
+Padded shape:
+(806, 806, 3)
+fft_h, fft_w:
+(812, 812)
+Kernel fft shape:
+(812, 812)
+Kernel: gauss_blur_7
+- Execution time: 0.240238 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 75.79 MB
+Padded shape:
+(814, 814, 3)
+fft_h, fft_w:
+(828, 828)
+Kernel fft shape:
+(828, 828)
+Kernel: gauss_blur_15
+- Execution time: 0.229394 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 77.88 MB
+Padded shape:
+(820, 820, 3)
+fft_h, fft_w:
+(840, 840)
+Kernel fft shape:
+(840, 840)
+Kernel: gauss_blur_21
+- Execution time: 0.203627 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 79.48 MB
+Padded shape:
+(804, 804, 3)
+fft_h, fft_w:
+(808, 808)
+Kernel fft shape:
+(808, 808)
+Kernel: unsharp_blur
+- Execution time: 0.453004 seconds
+- Current memory usage: 1.92 MB
+- Peak memory usage: 75.27 MB
+--------------- End in: 3.324220 seconds
