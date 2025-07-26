@@ -100,29 +100,34 @@ def rec601_luma_image3(img):
 	return np.stack([luma] * 3, axis=-1).astype(np.uint8) # broadcast the luma to all channels
 
 def rec709_luma_image3(img):
+	img = img.copy()
 	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
 	luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
 	return np.stack([luma] * 3, axis=-1).astype(np.uint8) # broadcast the luma to all channels
 
 def rec601_luma_image4(img):
+	img = img.copy()
 	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-	luma = 0.299 * r + 0.587 * g + 0.114 * b
+	luma = 0.2989 * r + 0.587 * g + 0.114 * b
 	img[..., 0], img[..., 1], img[..., 2] = luma, luma, luma
 	return img.astype(np.uint8) # broadcast the luma to all channels
 
 def rec709_luma_image4(img):
+	img = img.copy()
 	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
 	luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
 	img[..., 0], img[..., 1], img[..., 2] = luma, luma, luma
 	return img.astype(np.uint8) # broadcast the luma to all channels
 
 def rec601_luma_image5(img):
+	img = img.copy()
 	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
 	luma = 0.299 * r + 0.587 * g + 0.114 * b
 	img[..., 0] = img[..., 1] = img[..., 2] = luma
 	return img.astype(np.uint8) # broadcast the luma to all channels
 
 def rec601_luma_image6(img):
+	img = img.copy()
 	img[..., 0] = img[..., 1] = img[..., 2] = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
 	return img.astype(np.uint8)
 
@@ -131,6 +136,42 @@ def rec601_luma_image7(img):
 	luma = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
 	img[..., 0], img[..., 1], img[..., 2] = luma, luma, luma
 	return img.astype(np.uint8)
+
+def rec601_luma_image8(img): # mod 2
+	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+	luma = 0.299 * r + 0.587 * g + 0.114 * b
+	return np.dstack([luma, luma, luma]).astype(np.uint8) # broadcast the luma to all channels
+
+def rec601_luma_image9(img): # mod 8
+	r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+	luma = 0.299 * r + 0.587 * g + 0.114 * b
+	if img.shape[2] == 4:
+		return np.dstack([luma, luma, luma, img[:, :, 3]]).astype(np.uint8)
+	return np.dstack([luma, luma, luma]).astype(np.uint8)
+
+def rec601_luma_image10(img): # mod 9
+	luma = 0.299 * img[:, :, 0] + 0.587 * img[:, :, 1] + 0.114 * img[:, :, 2]
+	if img.shape[2] == 4:
+		return np.dstack([luma, luma, luma, img[:, :, 3]]).astype(np.uint8)
+	return np.dstack([luma, luma, luma]).astype(np.uint8)
+
+def rec601_luma_image11(img): # mod 10
+	img = img.copy()
+	luma = 0.299 * img[:, :, 0] + 0.587 * img[:, :, 1] + 0.114 * img[:, :, 2]
+	if img.shape[2] == 4:
+		img[:, :, 0] = img[:, :, 1] = img[:, :, 2] = luma
+		return img.astype(np.uint8)
+	else:
+		img[:, :, 0] = img[:, :, 1] = img[:, :, 2] = luma
+		return img.astype(np.uint8)
+
+def rec601_luma_image12(img): # winner
+	luma = 0.299 * img[:, :, 0] + 0.587 * img[:, :, 1] + 0.114 * img[:, :, 2]
+	result = np.zeros_like(img, dtype=np.uint8)  # initialize an empty result array
+	result[:, :, 0] = result[:, :, 1] = result[:, :, 2] = luma
+	if img.shape[2] == 4:
+		result[:, :, 3] = img[:, :, 3]  # copy the alpha channel unchanged
+	return result
 
 def raw(img):
 	return np.dot(img[..., :3], [0.299, 0.587, 0.114]).astype(np.uint8)
@@ -143,11 +184,12 @@ def raw_einsum(img):
 	return np.dstack([luma] * 3).astype(np.uint8)
 
 def raw_einsum3(img):
-    # Perform the luma calculation using Rec. 601 coefficients and update the 3rd dim
-    img[..., 0], img[..., 1], img[..., 2] = [np.einsum('ijk,k->ij', img[..., :3], [0.299, 0.587, 0.114])] * 3
-    return img.astype(np.uint8)
+	# perform the luma calculation using Rec. 601 coefficients and update the 3rd dim
+	img[..., 0], img[..., 1], img[..., 2] = [np.einsum('ijk,k->ij', img[..., :3], [0.299, 0.587, 0.114])] * 3
+	return img.astype(np.uint8)
 
 def raw_einsum4(img):
+	img = img.copy()
 	luma = np.einsum('ijk,k->ij', img[..., :3], [0.299, 0.587, 0.114])
 	img[..., 0], img[..., 1], img[..., 2] = luma, luma, luma
 	return img.astype(np.uint8)
@@ -155,13 +197,14 @@ def raw_einsum4(img):
 from numba import jit
 @jit(nopython=True)
 def rec601_luma_image_numba(img):
-    # Assuming img is a NumPy array
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            r, g, b = img[i, j, 0], img[i, j, 1], img[i, j, 2]
-            luma = 0.299 * r + 0.587 * g + 0.114 * b
-            img[i, j, 0] = img[i, j, 1] = img[i, j, 2] = luma
-    return img.astype(np.uint8)
+	img = img.copy()
+	# Assuming img is a NumPy array
+	for i in range(img.shape[0]):
+		for j in range(img.shape[1]):
+			r, g, b = img[i, j, 0], img[i, j, 1], img[i, j, 2]
+			luma = 0.299 * r + 0.587 * g + 0.114 * b
+			img[i, j, 0] = img[i, j, 1] = img[i, j, 2] = luma
+	return img.astype(np.uint8)
 
 img = read_img('../cat.jpg')
 def run_and_measure_shuffled(funcs, img, runs=50):
@@ -171,9 +214,8 @@ def run_and_measure_shuffled(funcs, img, runs=50):
 		tmp = fn(img)
 		print(tmp.shape)
 		print(f"Save to 'gray/{name}.png")
-		if name == 'rec601_7':
-			save_img(img.astype(np.uint8), "./ori.png")
 		save_img(tmp, "gray/" + name + '.png')
+	save_img(img.astype(np.uint8), "./ori.png")
 	for _ in range(runs):
 		random.shuffle(funcs)  # 🌀 Shuffle run order each round
 		for name, fn in funcs:
@@ -207,12 +249,17 @@ funcs = [
 	# ('rec709_2',          lambda img: rec709_luma_image2(img)),
 	('rec601_3',          lambda img: rec601_luma_image3(img)),
 	# ('rec709_3',          lambda img: rec709_luma_image3(img)),
-	('rec601_4',          lambda img: rec601_luma_image4(img)),
+	# ('rec601_4',          lambda img: rec601_luma_image4(img)),
 	# ('rec709_4',          lambda img: rec709_luma_image4(img)),
-	('rec601_5',          lambda img: rec601_luma_image5(img)),
-	('rec601_6',          lambda img: rec601_luma_image6(img)),
+	# ('rec601_5',          lambda img: rec601_luma_image5(img)),
+	# ('rec601_6',          lambda img: rec601_luma_image6(img)),
 	('rec601_7',          lambda img: rec601_luma_image7(img)),
-	('rec601_numba',      lambda img: rec601_luma_image_numba(img)),
+	('rec601_8',          lambda img: rec601_luma_image8(img)),
+	('rec601_9',          lambda img: rec601_luma_image9(img)),
+	('rec601_10',          lambda img: rec601_luma_image10(img)),
+	# ('rec601_11',          lambda img: rec601_luma_image11(img)),
+	('rec601_12',          lambda img: rec601_luma_image12(img)),
+	# ('rec601_numba',      lambda img: rec601_luma_image_numba(img)),
 	# ('raw',             lambda img: raw(img)),
 	# ('raw_with_at',          lambda img: raw(img)),
 	# ('raw_einsum',          lambda img: raw_einsum(img)),
@@ -235,6 +282,16 @@ funcs = [
 # raw_einsum           |     0.022905 |          21.363
 # raw_einsum3          |     0.016753 |           5.072
 # raw_einsum4          |     0.017045 |           6.714
+
+# Method               | Avg Time (s) |  Peak Mem (MiB)
+# --------------------------------------------------
+# rec601_2             |     0.011618 |          11.597
+# rec601_3             |     0.012091 |          11.597
+# rec601_7             |     0.012449 |          14.649
+# rec601_8             |     0.011753 |          11.597
+# rec601_9             |     0.011440 |          11.597
+# rec601_10            |     0.011653 |          11.597
+# rec601_12            |     0.008399 |           7.325
 
 # --- Run the benchmark ---
 results = run_and_measure_shuffled(funcs, img, runs=200)

@@ -106,35 +106,81 @@ def contrast_method_7(img_arr, factor):
 	new = (img_arr - mid) * factor + mid
 	return np.clip(new, 0, 255).astype(np.uint8)
 
+def img_change_contrast1(img_2d: np.array, factor: float):
+	norm = img_2d / 255.0
+	norm -= 0.5
+	norm *= factor
+	norm += 0.5
+	return np.clip(norm * 255, 0, 255).astype(np.uint8)
+
+def img_change_contrast2(img_2d: np.array, factor: float):
+	img_2d = img_2d.astype(np.float32)
+	img_2d[..., :3] -= 127
+	img_2d[..., :3] *= factor
+	img_2d[..., :3] += 127
+	img_2d = np.clip(img_2d, 0, 255)
+	return img_2d.astype(np.uint8)
+
+def img_change_contrast2b(img_2d: np.array, factor: float):
+	img_2d = img_2d.astype(np.float32)
+	img_2d[..., :3] -= 127
+	img_2d[..., :3] *= factor
+	img_2d[..., :3] += 127
+	return np.clip(img_2d, 0, 255).astype(np.uint8)
+
+def img_change_contrast3(img_2d: np.array, factor: float):
+    img_2d = img_2d.astype(np.float32)
+    rgb_mask = img_2d[:, :, :3]
+    rgb_mask -= 127.0
+    rgb_mask *= factor
+    rgb_mask += 127.0
+    np.clip(rgb_mask, 0, 255, out=rgb_mask)
+    img_2d[:, :, :3] = rgb_mask
+    return img_2d.astype(np.uint8)
+
+def img_change_contrast4(img_2d: np.array, factor: float) -> np.array:
+	img_2d = img_2d.astype(np.float32)
+	rgb_mask = img_2d[:, :, :3] # only modify the first three channel rgb and keep alpha intact
+	rgb_mask -= 127.0  # map the range from (0,256) to (-127, 128) with dark parts being lower than 0 and the opposite for light part
+	rgb_mask *= factor # distance the dark and light part by factor amount
+	rgb_mask += 127.0  # remap it back to normal range (0, 256)
+	np.clip(rgb_mask, 0, 255, out=rgb_mask) # clip out overflowed value
+	return img_2d.astype(np.uint8)
+
 # ========== Benchmark Setup ==========
 
-img = read_img('../cat2.jpg')
-mid = img.mean(axis=(0, 1), keepdims=True)
-print(mid)
-mid = img.mean()
-print(mid)
+img = read_img('../bank.jpg')
 contrast_factor = 1.5
-num_trials = 50
+num_trials = 2000
 
 funcs = [
-	('0. No Percentiles', lambda: adjust_contrast_no_percentiles(img, contrast_factor)),
-	('1. No Percentile 2', lambda: adjust_contrast_no_percentile2(img, contrast_factor)),
-	('2. With Percentiles', lambda: adjust_contrast_with_percentiles(img, contrast_factor)),
-	('3. Method 1 (Fixed Mid)', lambda: contrast_method_1(img, contrast_factor)),
-	('4. Method 2 (MinMax Norm)', lambda: contrast_method_2(img, contrast_factor)),
-	('5. Method 3 (Mean Mid)', lambda: contrast_method_3(img, contrast_factor)),
-	('6. Method 4 (Dynamic Mid)', lambda: contrast_method_4(img, contrast_factor)),
-	('7. Method 5 (Modded 3)', lambda: contrast_method_5(img, contrast_factor)),
-	('8. Method 6 (Modded 5)', lambda: contrast_method_6(img, contrast_factor)),
-	('9. Method 7 (Modded 4 combine with 2)', lambda: contrast_method_7(img, contrast_factor)),
+	# ('0. No Percentiles', lambda: adjust_contrast_no_percentiles(img, contrast_factor)),
+	# ('1. No Percentile 2', lambda: adjust_contrast_no_percentile2(img, contrast_factor)),
+	# ('2. With Percentiles', lambda: adjust_contrast_with_percentiles(img, contrast_factor)),
+	# ('3. Method 1 (Fixed Mid)', lambda: contrast_method_1(img, contrast_factor)),
+	# ('4. Method 2 (MinMax Norm)', lambda: contrast_method_2(img, contrast_factor)),
+	# ('5. Method 3 (Mean Mid)', lambda: contrast_method_3(img, contrast_factor)),
+	# ('6. Method 4 (Dynamic Mid)', lambda: contrast_method_4(img, contrast_factor)),
+	# ('7. Method 5 (Modded 3)', lambda: contrast_method_5(img, contrast_factor)),
+	# ('8. Method 6 (Modded 5)', lambda: contrast_method_6(img, contrast_factor)),
+	# ('9. Method 7 (Modded 4 combine with 2)', lambda: contrast_method_7(img, contrast_factor)),
+	# ('1. Norm float', lambda: img_change_contrast1(img, contrast_factor)),
+	# ('2. Raw float 2 ', lambda: img_change_contrast2(img, contrast_factor)),
+	# ('2. Raw float 2b', lambda: img_change_contrast2(img, contrast_factor)),
+	('2. Raw float 3 ', lambda: img_change_contrast3(img, contrast_factor)),
+	('2. Raw float 4 ', lambda: img_change_contrast3(img, contrast_factor)),
 ]
 
-
-# for name, func in funcs.items():
-# 	save_img(func(), 'img/' + name + '.png')
-
+import tracemalloc
 for name, func in funcs:
-	func()
+	tracemalloc.start()
+	temp = func()
+	current, peak = tracemalloc.get_traced_memory()
+	tracemalloc.stop()
+	print(name, current, peak, temp.shape, temp.dtype)
+	print(f"Save to 'img/contrast/{name}.png'")
+	save_img(temp, 'img/contrast/' + name + '.png')
+
 import random
 # ========== Benchmarking ==========
 results = {name: [] for name, _ in funcs}
@@ -149,6 +195,8 @@ plt.figure(figsize=(12, 7))
 for name in results:
 	avg = sum(results[name]) / len(results[name])
 	print(f"{name}: {avg:.8f} seconds per run")
+
+save_img(img.astype(np.uint8), 'img/contrast/original.png')
 
 i = 0
 for name in results:

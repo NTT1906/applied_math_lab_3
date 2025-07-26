@@ -3,6 +3,16 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
 import cv2  # OpenCV for comparison
+import os
+
+# ========== Image Read and Save Functions ==========
+def read_img(filepath):
+	img = Image.open(filepath).convert('RGB')
+	return np.array(img, dtype=np.float32)
+
+def save_img(img_arr, filepath):
+	os.makedirs(os.path.dirname(filepath), exist_ok=True)
+	Image.fromarray(img_arr).save(filepath)
 
 # --- Contrast functions ---
 def adjust_contrast_no_percentiles(img_arr, contrast_factor):
@@ -111,6 +121,14 @@ def contrast_opencv(img: np.ndarray, factor: float):
 	# adjusted = cv2.convertScaleAbs(image, alpha=factor, beta=0)
 	# return adjusted
 
+def img_change_contrast_noscale(img_2d: np.array, factor: float):
+	img_2d = img_2d.astype(np.float32)
+	img_2d[..., :3] -= 127
+	img_2d[..., :3] *= factor
+	img_2d[..., :3] += 127
+	img_2d = np.clip(img_2d, 0, 255)
+	return img_2d.astype(np.uint8)
+
 # --- Load image once ---
 original_img = Image.open("../bank.jpg")
 original_array = np.array(original_img)
@@ -160,7 +178,7 @@ def configure_scroll_region(event):
 img_frame.bind("<Configure>", configure_scroll_region)
 
 def mse(imageA, imageB):
-    return np.mean((imageA.astype("float") - imageB.astype("float")) ** 2)
+    return np.mean((imageA.astype(np.float32) - imageB.astype(np.float32)) ** 2)
 
 def psnr(imageA, imageB):
     err = mse(imageA, imageB)
@@ -181,16 +199,16 @@ def compare_histograms(img1, img2):
 image_processors = [
 	("Original", lambda arr, f: original_array),
 	("No Percentile", adjust_contrast_no_percentiles),
-	("No Percentile 2", adjust_contrast_no_percentile2),
+	# ("No Percentile 2", adjust_contrast_no_percentile2),
 	("With Percentile", adjust_contrast_with_percentiles),
-	("Con 1", contrast_method_1),
-	("Con 2", contrast_method_2),
-	("Con 3", contrast_method_3),
-	("Con 4", contrast_method_4),
-	("Con 5", contrast_method_5),
-	("Con 6", contrast_method_6),
-	("Con 7", contrast_method_7),
-	("OpenCV", contrast_opencv),
+	# ("Con 1", contrast_method_1),
+	# ("Con 2", contrast_method_2),
+	# ("Con 3", contrast_method_3),
+	# ("Con 4", contrast_method_4),
+	# ("Con 5", contrast_method_5),
+	# ("Con 6", contrast_method_6),
+	("No scale", img_change_contrast_noscale),
+	# ("OpenCV", contrast_opencv),
 	("High Contrast", lambda arr, f: highcon_array),
 	("Low Contrast", lambda arr, f: lowcon_array),
 ]
@@ -208,7 +226,6 @@ for idx, (label_text, _) in enumerate(image_processors):
 	tk_images.append(None)  # placeholder
 
 # --- Image update logic ---
-
 def _update(factor):
 	for idx, (label_text, func) in enumerate(image_processors):
 		img_array = func(original_array, factor)
@@ -221,21 +238,22 @@ def _update(factor):
 
 		if label_text in ("Original", "High Contrast", "Low Contrast"):
 			continue  # Don't compare these to themselves
-
+		print(f"\nSave to 'img/contrast/{label_text}_{factor}.png'")
+		save_img(img_array, f'img/contrast/{label_text}_{factor}.png')
 		# Resize both arrays to match
 		test_img = cv2.resize(img_array, (iw, ih))
 		high_img = cv2.resize(highcon_array, (iw, ih))
 		low_img = cv2.resize(lowcon_array, (iw, ih))
 
 		# Compare
-		print(f"\n=== {label_text} ===")
+		print(f"=== {label_text} ===")
 		if factor == 0.5:
 			print(f"→ Compared to 0.5 Low Contrast:")
 			print(f"   MSE  : {mse(test_img, low_img):.2f}")
 			print(f"   PSNR : {psnr(test_img, low_img):.2f}")
 			print(f"   Hist : {compare_histograms(test_img, low_img):.4f}")
 		elif factor == 1.5:
-			print(f"→ Compared to 0.5 High Contrast:")
+			print(f"→ Compared to 1.5 High Contrast:")
 			print(f"   MSE  : {mse(test_img, high_img):.2f}")
 			print(f"   PSNR : {psnr(test_img, high_img):.2f}")
 			print(f"   Hist : {compare_histograms(test_img, high_img):.4f}")
@@ -253,7 +271,7 @@ def update_images(event=None):
 # Initial image load
 _update(0.5)
 _update(1.5)
-update_images()
+# update_images()
 
 # Slider binding
 slider.bind("<Motion>", update_images)
