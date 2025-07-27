@@ -56,7 +56,7 @@ def kernel_convolution_stride(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndar
 
 	# pad image to handle boundaries
 	pad_size = k_height // 2
-	pad_img = np.pad(norm_img, ((pad_size, pad_size), (pad_size, pad_size), (0, 0)), mode='constant')
+	pad_img = np.pad(norm_img, ((pad_size, pad_size), (pad_size, pad_size), (0, 0)), mode='reflect')
 
 	patches = np.lib.stride_tricks.sliding_window_view(pad_img, window_shape=(k_height, k_height), axis=(0, 1)) # shape: (height, width, channel, k_height, k_width)
 	result = np.einsum('abcde,de->abc', patches, kernel)
@@ -375,10 +375,10 @@ def run_and_measure_shuffled(funcs, img, runs=50):
 
 funcs = [
 	('rfft', lambda img: kernel_convolution_rfft(img, gauss5)),
-	# ('rfft_smallfft', lambda img: kernel_convolution_rfft_smallfft(img, gauss5)),
-	# ('rfft_uint8', lambda img: kernel_convolution_rfft_uint8(img, gauss5)),
+	('rfft_smallfft', lambda img: kernel_convolution_rfft_smallfft(img, gauss5)),
+	('rfft_uint8', lambda img: kernel_convolution_rfft_uint8(img, gauss5)),
 	# ('stride', lambda img: kernel_convolution_stride(img, gauss5)),
-	# ('separate', lambda img: kernel_convolution_separable(img, k_row, k_col)),
+	('separate', lambda img: kernel_convolution_separable(img, k_row, k_col)),
 	('covo_apply', lambda img: kernel_convolution_apply(img, k_row)),
 	('covo_apply2', lambda img: kernel_convolution_apply2(img, k_row)),
 	('covo_apply3', lambda img: kernel_convolution_apply3(img, k_row)),
