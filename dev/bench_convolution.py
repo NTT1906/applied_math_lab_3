@@ -28,7 +28,7 @@ def kernel_convolution_rfft(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarra
 
 	k = kernel.shape[0]
 	pad = k // 2
-	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
+	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='reflect')
 	fft_h = padded_img.shape[0] + k - 1
 	fft_w = padded_img.shape[1] + k - 1
 	kernel_fft = np.fft.rfft2(kernel.astype(np.float32), s=(fft_h, fft_w))
@@ -41,6 +41,27 @@ def kernel_convolution_rfft(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarra
 		conv_real = np.fft.irfft2(conv_fft, s=(fft_h, fft_w))
 		result[:, :, i] = conv_real[r0:r1, c0:c1]
 	return np.clip(result * 255.0, 0, 255).astype(np.uint8)
+
+def kernel_convolution_stride(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+	if kernel.ndim != 2:
+		raise ValueError('Input kernel must be 2D')
+	if img_2d.ndim != 3:
+		raise ValueError('Input image must be 3D')
+
+	norm_img = img_2d.astype(np.float16) / 255.0
+	height, width, _ = norm_img.shape
+	k_height, k_width = kernel.shape
+	if k_height != k_width:
+		raise ValueError('Input kernel matrix must be square')
+
+	# pad image to handle boundaries
+	pad_size = k_height // 2
+	pad_img = np.pad(norm_img, ((pad_size, pad_size), (pad_size, pad_size), (0, 0)), mode='constant')
+
+	patches = np.lib.stride_tricks.sliding_window_view(pad_img, window_shape=(k_height, k_height), axis=(0, 1)) # shape: (height, width, channel, k_height, k_width)
+	result = np.einsum('abcde,de->abc', patches, kernel)
+	result = np.clip(result * 255, 0, 255).astype(np.uint8)
+	return result
 
 def kernel_convolution_rfft_smallfft(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarray:
 	if kernel.ndim != 2:
@@ -92,7 +113,7 @@ def kernel_convolution_rfft_uint8(img_2d: np.ndarray, kernel: np.ndarray) -> np.
 
 	k = kernel.shape[0]
 	pad = k // 2
-	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
+	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='reflect')
 	fft_h = padded_img.shape[0] + k - 1
 	fft_w = padded_img.shape[1] + k - 1
 	kernel_fft = np.fft.rfft2(kernel, s=(fft_h, fft_w))
@@ -105,6 +126,197 @@ def kernel_convolution_rfft_uint8(img_2d: np.ndarray, kernel: np.ndarray) -> np.
 		conv_real = np.fft.irfft2(conv_fft, s=(fft_h, fft_w))
 		result[:, :, i] = conv_real[r0:r1, c0:c1]
 	return np.clip(result, 0, 255).astype(np.uint8)
+
+def is_separable_kernel(kernel: np.ndarray, tol=1e-5) -> bool:
+	if kernel.ndim != 2:
+		raise ValueError("Kernel must be 2D")
+	u, s, vh = np.linalg.svd(kernel, full_matrices=False)
+	return np.sum(s > tol) == 1
+
+
+def get_separable_components(kernel: np.ndarray, tol=1e-5):
+	if not is_separable_kernel(kernel, tol):
+		raise ValueError("Kernel is not separable")
+
+	u, s, vh = np.linalg.svd(kernel, full_matrices=False)
+	root_s = np.sqrt(s[0])
+	col = u[:, 0] * root_s
+	row = vh[0, :] * root_s
+	return row, col  # row first (horizontal), then column (vertical)
+
+def kernel_convolution_separable(img: np.ndarray, k_row: np.ndarray, k_col: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if k_row.ndim != 1 or k_col.ndim != 1:
+		raise ValueError("Kernels must be 1D")
+
+	img = img.astype(np.float32) / 255.0
+	H, W, C = img.shape
+	output = np.empty_like(img)
+
+	pad_r = len(k_col) // 2
+	pad_c = len(k_row) // 2
+
+	for c in range(C):
+		channel = img[:, :, c]
+
+		# Pad and convolve vertically
+		padded_v = np.pad(channel, ((pad_r, pad_r), (0, 0)), mode='reflect')
+		temp = np.zeros_like(channel)
+		for i in range(len(k_col)):
+			temp += k_col[i] * padded_v[i:i+H, :]
+
+		# Pad and convolve horizontally
+		padded_h = np.pad(temp, ((0, 0), (pad_c, pad_c)), mode='reflect')
+		final = np.zeros_like(channel)
+		for j in range(len(k_row)):
+			final += k_row[j] * padded_h[:, j:j+W]
+
+		output[:, :, c] = final
+
+	return np.clip(output * 255, 0, 255).astype(np.uint8)
+
+def kernel_convolution_apply(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	img = img.astype(np.float32) / 255.0
+	H, W, C = img.shape
+	output = np.empty_like(img)
+
+	for c in range(C):
+		temp = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=0, arr=img[:, :, c])
+		final = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=1, arr=temp)
+		output[:, :, c] = final
+
+	return np.clip(output * 255.0, 0, 255).astype(np.uint8)
+
+def kernel_convolution_apply2(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	img = img.astype(np.float32) / 255.0
+	H, W, C = img.shape
+	output = np.empty_like(img)
+
+	tmp = np.zeros_like(img[:, :, 0])
+	for c in range(C):
+		tmp = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=0, arr=img[:, :, c])
+		output[:, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=1, arr=tmp)
+
+	return np.clip(output * 255.0, 0, 255).astype(np.uint8)
+
+
+def kernel_convolution_apply3(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	img = img.astype(np.float32) / 255.0
+	H, W, C = img.shape
+
+	img_padded = np.pad(img, ((kernel_1d.size // 2, kernel_1d.size // 2),
+							  (kernel_1d.size // 2, kernel_1d.size // 2),
+							  (0, 0)), mode='reflect')
+	# print('A3', img_padded.shape)
+
+
+	tmp = np.zeros_like(img[:, :, 0])
+	for c in range(C):
+		# print('1: ', tmp.shape)
+		tmp = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=0, arr=img_padded[:, :, c])
+		# print('2: ', tmp.shape)
+		img[:, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=1, arr=tmp)
+		# print('3: ', img[:, :, c].shape)
+
+	return np.clip(img * 255.0, 0, 255).astype(np.uint8)
+
+def kernel_convolution_apply4(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	img = img.astype(np.float32) / 255.0
+	H, W, C = img.shape
+
+	img_padded = np.pad(img, ((kernel_1d.size // 2, kernel_1d.size // 2),
+							  (kernel_1d.size // 2, kernel_1d.size // 2),
+							  (0, 0)), mode='reflect')
+	# print('A4', img_padded.shape)
+
+	for c in range(C):
+		img_padded[:H, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=0, arr=img_padded[:, :, c])
+		img[:, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=1, arr=img_padded[:H, :, c])
+
+	return np.clip(img * 255.0, 0, 255).astype(np.uint8)
+
+def kernel_convolution_apply5(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+	H, W, C = img.shape
+
+	img = np.pad(img.astype(np.float32) / 255.0, ((kernel_1d.size // 2, kernel_1d.size // 2),
+							  (kernel_1d.size // 2, kernel_1d.size // 2),
+							  (0, 0)), mode='reflect')
+
+	for c in range(C):
+		img[:H, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=0, arr=img[:, :, c])
+		img[:H, :W, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=1, arr=img[:H, :, c])
+
+	return np.clip(img[:H,:W,:] * 255.0, 0, 255).astype(np.uint8)
+
+
+def kernel_convolution_apply6(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	H, W, C = img.shape
+	k_size = kernel_1d.size
+	pad_size = k_size // 2
+	pad_end_height, pad_end_width = pad_size + H, pad_size + W
+
+	# Normalize and pad the image
+	img = np.pad(img.astype(np.float32) / 255.0,((pad_size, pad_size), (pad_size, pad_size), (0, 0)), mode='reflect')
+
+	# Apply convolution directly on the padded image for each channel
+	for c in range(C):
+		img[pad_size:pad_end_height, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=0, arr=img[:, :, c])
+		img[pad_size:pad_end_height, pad_size:pad_end_width, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='valid'), axis=1, arr=img[pad_size:pad_end_height, :, c])
+
+	# Clip and return the result
+	return np.clip(img[pad_size:pad_end_height, pad_size:pad_end_width, :] * 255.0, 0, 255).astype(np.uint8)
+
+def kernel_convolution_apply7(img: np.ndarray, kernel_1d: np.ndarray) -> np.ndarray:
+	if img.ndim != 3:
+		raise ValueError("Image must be 3D (H, W, C)")
+	if kernel_1d.ndim != 1:
+		raise ValueError("Kernel must be 1D")
+
+	H, W, C = img.shape
+	k_size = kernel_1d.size
+	pad_size = k_size // 2
+	pad_end_height, pad_end_width = pad_size + H, pad_size + W
+
+	# Normalize and pad the image
+	img = np.pad(img.astype(np.float32) / 255.0,((pad_size, pad_size), (pad_size, pad_size), (0, 0)), mode='reflect')
+
+	# Apply convolution directly on the padded image for each channel
+	for c in range(C):
+		img[:, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=0, arr=img[:, :, c])
+		img[:, :, c] = np.apply_along_axis(lambda x: np.convolve(x, kernel_1d, mode='same'), axis=1, arr=img[:, :, c])
+
+	# Clip and return the result
+	return np.clip(img[pad_size:pad_end_height, pad_size:pad_end_width, :] * 255.0, 0, 255).astype(np.uint8)
 
 # ======== UTILS =============
 def kernel_identity(size: int) -> np.array:
@@ -121,9 +333,17 @@ def kernel_gauss_blur(size: int) -> np.ndarray:
 		kernel_1d = np.convolve(kernel_1d, [1, 1])
 	return np.outer(kernel_1d, kernel_1d) / (4 ** (size - 1))
 # ======== BENCHMARK =============
-img = read_img('../cat.jpg')
-gauss5 = kernel_gauss_blur(5)
+MAT_UNSHARP_BLUR_5 = -0.00390625 * np.array(
+	[[1,  4,    6,  4,  1],
+	 [4, 16,   24, 16, 14],
+	 [6, 24, -476, 24,  6],
+	 [4, 16,   24, 16,  4],
+	 [1,  4,    6,  4,  1]])
 
+img = read_img('../cat.jpg')
+gauss5 = kernel_gauss_blur(31)
+# gauss5 = MAT_UNSHARP_BLUR_5
+k_row, k_col = get_separable_components(gauss5)
 def run_and_measure_shuffled(funcs, img, runs=50):
 	results = {name: {"times": [], "peak_mem": 0} for name, _ in funcs}
 
@@ -155,8 +375,16 @@ def run_and_measure_shuffled(funcs, img, runs=50):
 
 funcs = [
 	('rfft', lambda img: kernel_convolution_rfft(img, gauss5)),
-	('rfft_smallfft', lambda img: kernel_convolution_rfft_smallfft(img, gauss5)),
-	('rfft_uint8', lambda img: kernel_convolution_rfft_uint8(img, gauss5)),
+	# ('rfft_smallfft', lambda img: kernel_convolution_rfft_smallfft(img, gauss5)),
+	# ('rfft_uint8', lambda img: kernel_convolution_rfft_uint8(img, gauss5)),
+	# ('stride', lambda img: kernel_convolution_stride(img, gauss5)),
+	# ('separate', lambda img: kernel_convolution_separable(img, k_row, k_col)),
+	('covo_apply', lambda img: kernel_convolution_apply(img, k_row)),
+	('covo_apply2', lambda img: kernel_convolution_apply2(img, k_row)),
+	('covo_apply3', lambda img: kernel_convolution_apply3(img, k_row)),
+	('covo_apply4', lambda img: kernel_convolution_apply4(img, k_row)),
+	('covo_apply5', lambda img: kernel_convolution_apply5(img, k_row)),
+	('covo_apply6', lambda img: kernel_convolution_apply6(img, k_row)),
 ]
 # import cProfile
 # cProfile.run("kernel_convolution_rfft(img, gauss5)")

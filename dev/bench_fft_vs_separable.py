@@ -71,50 +71,49 @@ def kernel_convolution_rfft(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarra
 	# Rescale and convert
 	return np.clip(result * 255.0, 0, 255).astype(np.uint8)
 
-def kernel_convolution_rfft_v2(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-	if kernel.ndim != 2:
-		raise ValueError('Input kernel must be 2D')
-	if img_2d.ndim != 3:
-		raise ValueError('Input image must be 3D')
-
-	# Normalize the image to [0, 1]
-	norm_img = img_2d.astype(np.float32) / 255.0
-	h, w, c = norm_img.shape
-	if kernel.shape[0] != kernel.shape[1]:
-		raise ValueError('Kernel must be square')
-
-	k = kernel.shape[0]
-	pad = k // 2
-	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
-
-	# fft size
-	fft_h = padded_img.shape[0] + k - 1 # h + 2 * pad + k - 1 = 2 + (k//2) * 2 + k - 1
-	fft_w = padded_img.shape[1] + k - 1
-
-	# Compute the FFT of the kernel once
-	kernel_fft = np.fft.rfft2(kernel.astype(np.float32), s=(fft_h, fft_w))
-
-	# Prepare the result array (output size)
-	out_h, out_w = h, w
-	result = np.empty((out_h, out_w, c), dtype=np.float32)
-
-	# Process each channel
-	for i in range(c):
-		# FFT of the current channel
-		channel_fft = np.fft.rfft2(padded_img[:, :, i], s=(fft_h, fft_w))
-
-		# Perform the convolution in the frequency domain
-		conv_fft = channel_fft * kernel_fft
-
-		# Inverse FFT to get the convolution result
-		conv_real = np.fft.irfft2(conv_fft, s=(fft_h, fft_w))
-
-		# Crop the result to the original image size
-		result[:, :, i] = conv_real[pad:pad + out_h, pad:pad + out_w]
-
-	# Rescale and convert back to uint8
-	return np.clip(result * 255.0, 0, 255).astype(np.uint8)
-
+# def kernel_convolution_rfft_v2(img_2d: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+# 	if kernel.ndim != 2:
+# 		raise ValueError('Input kernel must be 2D')
+# 	if img_2d.ndim != 3:
+# 		raise ValueError('Input image must be 3D')
+#
+# 	# Normalize the image to [0, 1]
+# 	norm_img = img_2d.astype(np.float32) / 255.0
+# 	h, w, c = norm_img.shape
+# 	if kernel.shape[0] != kernel.shape[1]:
+# 		raise ValueError('Kernel must be square')
+#
+# 	k = kernel.shape[0]
+# 	pad = k // 2
+# 	padded_img = np.pad(norm_img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
+#
+# 	# fft size
+# 	fft_h = padded_img.shape[0] + k - 1 # h + 2 * pad + k - 1 = 2 + (k//2) * 2 + k - 1
+# 	fft_w = padded_img.shape[1] + k - 1
+#
+# 	# Compute the FFT of the kernel once
+# 	kernel_fft = np.fft.rfft2(kernel.astype(np.float32), s=(fft_h, fft_w))
+#
+# 	# Prepare the result array (output size)
+# 	out_h, out_w = h, w
+# 	result = np.empty((out_h, out_w, c), dtype=np.float32)
+#
+# 	# Process each channel
+# 	for i in range(c):
+# 		# FFT of the current channel
+# 		channel_fft = np.fft.rfft2(padded_img[:, :, i], s=(fft_h, fft_w))
+#
+# 		# Perform the convolution in the frequency domain
+# 		conv_fft = channel_fft * kernel_fft
+#
+# 		# Inverse FFT to get the convolution result
+# 		conv_real = np.fft.irfft2(conv_fft, s=(fft_h, fft_w))
+#
+# 		# Crop the result to the original image size
+# 		result[:, :, i] = conv_real[pad:pad + out_h, pad:pad + out_w]
+#
+# 	# Rescale and convert back to uint8
+# 	return np.clip(result * 255.0, 0, 255).astype(np.uint8)
 
 def kernel_convolution_separable(img: np.ndarray, k_row: np.ndarray, k_col: np.ndarray) -> np.ndarray:
 	if img.ndim != 3:
@@ -389,7 +388,7 @@ def test_v4():
 	kernel_convolution_direct(img, k_row)
 
 for _ in range(num_trials):
-	# t1 = timeit.timeit(test_v1, number=1)
+	t1 = timeit.timeit(test_v1, number=1)
 	# t4 = timeit.timeit(test_v4, number=1)
 	t3 = timeit.timeit(test_v3, number=1)
 	t2 = timeit.timeit(test_v2, number=1)
